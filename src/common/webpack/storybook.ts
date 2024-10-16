@@ -1,7 +1,5 @@
 import * as path from 'node:path';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
-import MiniCSSExtractPlugin from 'mini-css-extract-plugin';
-import OptimizeCSSAssetsPlugin from 'css-minimizer-webpack-plugin';
 
 import {WebpackMode, configureModuleRules, configureOptimization, configureResolve} from './config';
 import {getProjectConfig, normalizeConfig} from '../config';
@@ -9,14 +7,14 @@ import {isLibraryConfig} from '../models';
 
 import type {HelperOptions} from './config';
 import type {ClientConfig} from '../models';
-import type * as Webpack from 'webpack';
+import * as Rspack from '@rspack/core';
 
 type Mode = `${WebpackMode}`;
 
 export async function configureServiceWebpackConfig(
     mode: Mode,
-    storybookConfig: Webpack.Configuration,
-): Promise<Webpack.Configuration> {
+    storybookConfig: Rspack.Configuration,
+): Promise<Rspack.Configuration> {
     const serviceConfig = await getProjectConfig(mode === WebpackMode.Prod ? 'build' : 'dev', {
         storybook: true,
     });
@@ -78,7 +76,7 @@ export async function configureServiceWebpackConfig(
     };
 }
 
-type ModuleRule = NonNullable<NonNullable<Webpack.Configuration['module']>['rules']>[number];
+type ModuleRule = NonNullable<NonNullable<Rspack.Configuration['module']>['rules']>[number];
 export async function configureWebpackConfigForStorybook(
     mode: Mode,
     userConfig: ClientConfig = {},
@@ -105,10 +103,8 @@ export async function configureWebpackConfigForStorybook(
         module: {
             rules: configureModuleRules(
                 helperOptions,
-                storybookModuleRules.filter((rule) => rule !== '...') as Exclude<
-                    ModuleRule,
-                    '...'
-                >[],
+                // @ts-ignore
+                storybookModuleRules.filter((rule) => rule !== '...') as Rspack.RuleSetRules,
             ),
         },
         resolve: configureResolve(helperOptions),
@@ -120,14 +116,14 @@ export async function configureWebpackConfigForStorybook(
 }
 
 function configurePlugins({isEnvDevelopment, isEnvProduction, config}: HelperOptions) {
-    const plugins: Webpack.Configuration['plugins'] = [];
+    const plugins: Rspack.Configuration['plugins'] = [];
 
     if (config.definitions) {
-        const webpack = require(
-            path.resolve(process.cwd(), 'node_modules/webpack'),
-        ) as typeof Webpack;
+        const rspack = require(
+            path.resolve(process.cwd(), 'node_modules/@rspack/core'),
+        ) as typeof Rspack;
         plugins.push(
-            new webpack.DefinePlugin({
+            new rspack.DefinePlugin({
                 ...config.definitions,
             }),
         );
@@ -151,7 +147,7 @@ function configurePlugins({isEnvDevelopment, isEnvProduction, config}: HelperOpt
 
     if (isEnvProduction) {
         plugins.push(
-            new MiniCSSExtractPlugin({
+            new Rspack.CssExtractRspackPlugin({
                 filename: 'css/[name].[contenthash:8].css',
                 chunkFilename: 'css/[name].[contenthash:8].chunk.css',
                 ignoreOrder: true,
@@ -159,15 +155,15 @@ function configurePlugins({isEnvDevelopment, isEnvProduction, config}: HelperOpt
         );
 
         plugins.push(
-            new OptimizeCSSAssetsPlugin({
-                minimizerOptions: {
-                    preset: [
-                        'default',
-                        {
-                            svgo: false,
-                        },
-                    ],
-                },
+            new Rspack.LightningCssMinimizerRspackPlugin({
+                // minimizerOptions: {
+                //     preset: [
+                //         'default',
+                //         {
+                //             svgo: false,
+                //         },
+                //     ],
+                // },
             }),
         );
     }

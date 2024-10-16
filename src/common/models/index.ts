@@ -2,15 +2,9 @@ import type {EditorLanguage} from 'monaco-editor-webpack-plugin/out/languages';
 import type {EditorFeature} from 'monaco-editor-webpack-plugin/out/features';
 import type {IFeatureDefinition} from 'monaco-editor-webpack-plugin/out/types';
 import type {Options as MomentTzOptions} from 'moment-timezone-data-webpack-plugin';
-import type {
-    Configuration,
-    DefinePlugin,
-    FileCacheOptions,
-    MemoryCacheOptions,
-    ResolveOptions,
-} from 'webpack';
+import * as rspack from '@rspack/core';
 import type * as Babel from '@babel/core';
-import type {ServerConfiguration} from 'webpack-dev-server';
+import type {Configuration as ServerConfiguration} from '@rspack/dev-server';
 import type {Options as CircularDependenciesOptions} from 'circular-dependency-plugin';
 import type {Config as SvgrConfig} from '@svgr/core';
 import type {ForkTsCheckerWebpackPluginOptions} from 'fork-ts-checker-webpack-plugin/lib/plugin-options';
@@ -18,7 +12,6 @@ import type {Options as StatoscopeOptions} from '@statoscope/webpack-plugin';
 import type {SentryWebpackPluginOptions} from '@sentry/webpack-plugin';
 import type {WebpackMode} from '../webpack/config';
 import type {UploadOptions} from '../s3-upload/upload';
-import type {TerserOptions} from 'terser-webpack-plugin';
 import type {ReactRefreshPluginOptions} from '@pmmmwh/react-refresh-webpack-plugin/types/lib/types';
 
 export interface Entities<T> {
@@ -113,15 +106,15 @@ export interface ClientConfig {
     /**
      * Specify dependencies that shouldn't be resolved by webpack, but should become dependencies of the resulting bundle. The kind of the dependency depends on `output.libraryTarget`.
      */
-    externals?: Configuration['externals'];
+    externals?: rspack.Configuration['externals'];
     /**
      * Include polyfills or mocks for various node stuff.
      */
-    node?: Configuration['node'];
+    node?: rspack.Configuration['node'];
     /**
      * Redirect module requests when normal resolving fails.
      */
-    fallback?: ResolveOptions['fallback'];
+    fallback?: rspack.ResolveOptions['fallback'];
     /**
      * Follow symbolic links while looking for a file. [more](https://webpack.js.org/configuration/resolve/#resolvesymlinks)
      */
@@ -170,8 +163,8 @@ export interface ClientConfig {
     /**
      * Add additional options to DefinePlugin
      */
-    definitions?: DefinePlugin['definitions'];
-    watchOptions?: Configuration['watchOptions'] & {
+    definitions?: rspack.DefinePluginOptions;
+    watchOptions?: rspack.Configuration['watchOptions'] & {
         /**
          * watch changes in node_modules
          */
@@ -183,7 +176,8 @@ export interface ClientConfig {
      */
     newWebWorkerSyntax?: boolean;
     babelCacheDirectory?: boolean | string;
-    cache?: boolean | FileCacheOptions | MemoryCacheOptions;
+    cache?: boolean;
+    cacheOptions?: rspack.CacheOptions;
     /** Use [Lighting CSS](https://lightningcss.dev) to transform and minimize css instead of PostCSS and cssnano*/
     transformCssWithLightningCss?: boolean;
     sentryConfig?: SentryWebpackPluginOptions;
@@ -191,9 +185,9 @@ export interface ClientConfig {
      * Modify or return a custom Webpack config.
      */
     webpack?: (
-        config: Configuration,
+        config: rspack.Configuration,
         options: {configType: `${WebpackMode}`},
-    ) => Configuration | Promise<Configuration>;
+    ) => rspack.Configuration | Promise<rspack.Configuration>;
     /**
      * Modify or return a custom Babel config.
      */
@@ -204,7 +198,9 @@ export interface ClientConfig {
     /**
      * Modify or return a custom [Terser options](https://github.com/terser/terser#minify-options).
      */
-    terser?: (options: TerserOptions) => TerserOptions;
+    terser?: (
+        options: rspack.SwcJsMinimizerRspackPluginOptions,
+    ) => rspack.SwcJsMinimizerRspackPluginOptions;
 }
 
 export interface CdnUploadConfig {
@@ -254,10 +250,10 @@ export type NormalizedClientConfig = Omit<
         server?: ServerConfiguration;
     };
     verbose?: boolean;
-    webpack: (
-        config: Configuration,
+    rspack: (
+        config: rspack.Configuration,
         options: {configType: `${WebpackMode}`},
-    ) => Configuration | Promise<Configuration>;
+    ) => rspack.Configuration | Promise<rspack.Configuration>;
     debugWebpack?: boolean;
     babel: (
         config: Babel.TransformOptions,

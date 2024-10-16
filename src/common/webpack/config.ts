@@ -1,23 +1,19 @@
 /* eslint-disable complexity */
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import * as webpack from 'webpack';
+import * as rspack from '@rspack/core';
 import _ from 'lodash';
 import {CleanWebpackPlugin} from 'clean-webpack-plugin';
-import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
 import ForkTsCheckerWebpackPlugin from 'fork-ts-checker-webpack-plugin';
-import MiniCSSExtractPlugin from 'mini-css-extract-plugin';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
-import WebpackAssetsManifest from 'webpack-assets-manifest';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
 import MomentTimezoneDataPlugin from 'moment-timezone-data-webpack-plugin';
 import StatoscopeWebpackPlugin from '@statoscope/webpack-plugin';
 import CircularDependencyPlugin from 'circular-dependency-plugin';
 import type {sentryWebpackPlugin} from '@sentry/webpack-plugin';
-
-import type TerserWebpackPlugin from 'terser-webpack-plugin';
-import type * as Lightningcss from 'lightningcss';
-import type CssMinimizerWebpackPlugin from 'css-minimizer-webpack-plugin';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import {RspackManifestPlugin} from 'rspack-manifest-plugin';
+// import WebpackAssetsManifest from 'webpack-assets-manifest';
 import type * as Babel from '@babel/core';
 
 import paths from '../paths';
@@ -50,7 +46,7 @@ export async function webpackConfigFactory(
     webpackMode: WebpackMode,
     config: NormalizedClientConfig,
     {logger}: {logger?: Logger} = {},
-): Promise<webpack.Configuration> {
+): Promise<rspack.Configuration> {
     const isEnvDevelopment = webpackMode === WebpackMode.Dev;
     const isEnvProduction = webpackMode === WebpackMode.Prod;
 
@@ -62,7 +58,7 @@ export async function webpackConfigFactory(
         configType: webpackMode,
     };
 
-    let webpackConfig: webpack.Configuration = {
+    let webpackConfig: rspack.Configuration = {
         mode: webpackMode,
         context: paths.app,
         bail: isEnvProduction,
@@ -87,13 +83,14 @@ export async function webpackConfigFactory(
             : undefined,
 
         experiments: configureExperiments(helperOptions),
-        snapshot: {
-            managedPaths: config.watchOptions?.watchPackages ? [] : undefined,
-        },
+        // @TODO(kalachevv): check this
+        // snapshot: {
+        //     managedPaths: config.watchOptions?.watchPackages ? [] : undefined,
+        // },
         cache: config.cache,
     };
 
-    webpackConfig = await config.webpack(webpackConfig, {configType: webpackMode});
+    webpackConfig = await config.rspack(webpackConfig, {configType: webpackMode});
 
     if (config.debugWebpack) {
         logConfig('Preview webpack config', webpackConfig);
@@ -104,7 +101,7 @@ export async function webpackConfigFactory(
 
 export function configureModuleRules(
     helperOptions: HelperOptions,
-    additionalRules: NonNullable<webpack.RuleSetRule['oneOf']> = [],
+    additionalRules: NonNullable<rspack.RuleSetRule['oneOf']> = [],
 ) {
     const jsLoader = createJavaScriptLoader(helperOptions);
     return [
@@ -126,7 +123,7 @@ export function configureModuleRules(
 }
 
 function configureDevTool({isEnvProduction, config}: HelperOptions) {
-    let format: webpack.Configuration['devtool'] = 'cheap-module-source-map';
+    let format: rspack.Configuration['devtool'] = 'cheap-module-source-map';
     if (isEnvProduction) {
         format = config.hiddenSourceMap ? 'hidden-source-map' : 'source-map';
     }
@@ -134,7 +131,7 @@ function configureDevTool({isEnvProduction, config}: HelperOptions) {
     return config.disableSourceMapGeneration ? false : format;
 }
 
-function configureWatchOptions({config}: HelperOptions): webpack.Configuration['watchOptions'] {
+function configureWatchOptions({config}: HelperOptions): rspack.Configuration['watchOptions'] {
     const watchOptions = {
         ...config.watchOptions,
         followSymlinks:
@@ -152,7 +149,7 @@ function configureWatchOptions({config}: HelperOptions): webpack.Configuration['
 function configureExperiments({
     config,
     isEnvProduction,
-}: HelperOptions): webpack.Configuration['experiments'] {
+}: HelperOptions): rspack.Configuration['experiments'] {
     if (isEnvProduction) {
         return undefined;
     }
@@ -187,7 +184,7 @@ function configureExperiments({
     };
 }
 
-export function configureResolve({isEnvProduction, config}: HelperOptions): webpack.ResolveOptions {
+export function configureResolve({isEnvProduction, config}: HelperOptions): rspack.ResolveOptions {
     const alias: Record<string, string> = {...config.alias};
 
     for (const [key, value] of Object.entries(alias)) {
@@ -217,7 +214,7 @@ function createEntryArray(entry: string) {
     return [require.resolve('./public-path'), entry];
 }
 
-function addEntry(entry: webpack.EntryObject, file: string): webpack.EntryObject {
+function addEntry(entry: rspack.EntryObject, file: string): rspack.EntryObject {
     const newEntry = path.resolve(paths.appEntry, file);
     return {
         ...entry,
@@ -225,7 +222,7 @@ function addEntry(entry: webpack.EntryObject, file: string): webpack.EntryObject
     };
 }
 
-function configureEntry({config}: HelperOptions): webpack.EntryObject {
+function configureEntry({config}: HelperOptions): rspack.EntryObject {
     let entries = fs.readdirSync(paths.appEntry).filter((file) => /\.[jt]sx?$/.test(file));
 
     if (Array.isArray(config.entryFilter) && config.entryFilter.length) {
@@ -253,7 +250,7 @@ function getFileNames({isEnvProduction}: HelperOptions) {
 function configureOutput({
     isEnvDevelopment,
     ...rest
-}: HelperOptions): webpack.Configuration['output'] {
+}: HelperOptions): rspack.Configuration['output'] {
     return {
         ...getFileNames({isEnvDevelopment, ...rest}),
         path: paths.appBuild,
@@ -266,7 +263,7 @@ function createJavaScriptLoader({
     isEnvDevelopment,
     configType,
     config,
-}: HelperOptions): webpack.RuleSetUseItem {
+}: HelperOptions): rspack.RuleSetUseItem {
     const plugins: Babel.PluginItem[] = [];
     if (isEnvDevelopment && config.reactRefresh !== false) {
         plugins.push([
@@ -312,8 +309,8 @@ function createJavaScriptLoader({
 
 function createJavaScriptRule(
     {config, isEnvProduction}: HelperOptions,
-    jsLoader: webpack.RuleSetUseItem,
-): webpack.RuleSetRule {
+    jsLoader: rspack.RuleSetUseItem,
+): rspack.RuleSetRule {
     const include = [
         paths.appClient,
         ...(config.monaco && isEnvProduction
@@ -329,7 +326,7 @@ function createJavaScriptRule(
     };
 }
 
-function createSourceMapRules(shouldUseSourceMap: boolean): webpack.RuleSetRule[] {
+function createSourceMapRules(shouldUseSourceMap: boolean): rspack.RuleSetRule[] {
     if (shouldUseSourceMap) {
         return [
             {
@@ -344,7 +341,7 @@ function createSourceMapRules(shouldUseSourceMap: boolean): webpack.RuleSetRule[
     return [];
 }
 
-function createWorkerRule(options: HelperOptions): webpack.RuleSetRule {
+function createWorkerRule(options: HelperOptions): rspack.RuleSetRule {
     return {
         test: /\.worker\.[jt]sx?$/,
         exclude: /node_modules/,
@@ -366,7 +363,7 @@ function createWorkerRule(options: HelperOptions): webpack.RuleSetRule {
     };
 }
 
-function createSassStylesRule(options: HelperOptions): webpack.RuleSetRule {
+function createSassStylesRule(options: HelperOptions): rspack.RuleSetRule {
     const loaders = getCssLoaders(options);
 
     loaders.push({
@@ -393,7 +390,7 @@ function createSassStylesRule(options: HelperOptions): webpack.RuleSetRule {
     };
 }
 
-function createStylesRule(options: HelperOptions): webpack.RuleSetRule {
+function createStylesRule(options: HelperOptions): rspack.RuleSetRule {
     const loaders = getCssLoaders(options);
     return {
         test: /\.css$/,
@@ -403,10 +400,10 @@ function createStylesRule(options: HelperOptions): webpack.RuleSetRule {
 }
 
 function getCssLoaders({isEnvDevelopment, isEnvProduction, config}: HelperOptions) {
-    const loaders: webpack.RuleSetUseItem[] = [];
+    const loaders: rspack.RuleSetUseItem[] = [];
 
     if (isEnvProduction) {
-        loaders.push(MiniCSSExtractPlugin.loader);
+        loaders.push(rspack.CssExtractRspackPlugin.loader);
     }
 
     if (isEnvDevelopment) {
@@ -448,8 +445,8 @@ function getCssLoaders({isEnvDevelopment, isEnvProduction, config}: HelperOption
 
 function createIconsRule(
     {isEnvProduction, config}: HelperOptions,
-    jsLoader?: webpack.RuleSetUseItem,
-): webpack.RuleSetRule {
+    jsLoader?: rspack.RuleSetUseItem,
+): rspack.RuleSetRule {
     const iconIncludes = config.icons || [];
     return {
         // eslint-disable-next-line security/detect-unsafe-regex
@@ -491,7 +488,7 @@ function createIconsRule(
     };
 }
 
-function createAssetsRules({isEnvProduction, config}: HelperOptions): webpack.RuleSetRule[] {
+function createAssetsRules({isEnvProduction, config}: HelperOptions): rspack.RuleSetRule[] {
     const imagesRule = {
         test: /\.(ico|bmp|gif|jpe?g|png|svg)$/,
         include: [paths.appClient, ...(config.images || [])],
@@ -519,7 +516,7 @@ function createAssetsRules({isEnvProduction, config}: HelperOptions): webpack.Ru
         },
     };
 
-    const rules: webpack.RuleSetRule[] = [imagesRule, fontsRule];
+    const rules: rspack.RuleSetRule[] = [imagesRule, fontsRule];
 
     if (isEnvProduction) {
         // with dynamic public path, imports from css files will look for assets in 'css/assets' directory
@@ -562,7 +559,7 @@ function createAssetsRules({isEnvProduction, config}: HelperOptions): webpack.Ru
 }
 
 function createFallbackRules({isEnvProduction}: HelperOptions) {
-    const rules: webpack.RuleSetRule[] = [
+    const rules: rspack.RuleSetRule[] = [
         {
             type: 'asset/resource',
             generator: {
@@ -599,12 +596,15 @@ function createMomentTimezoneDataPlugin(options: NormalizedClientConfig['momentT
     return new MomentTimezoneDataPlugin({...options, startYear, endYear});
 }
 
-function configurePlugins(options: HelperOptions): webpack.Configuration['plugins'] {
+function configurePlugins(options: HelperOptions): rspack.Configuration['plugins'] {
     const {isEnvDevelopment, isEnvProduction, config} = options;
     const excludeFromClean = config.excludeFromClean || [];
 
     const manifestFile = 'assets-manifest.json';
-    const plugins: webpack.Configuration['plugins'] = [
+    const fileName = isEnvProduction ? manifestFile : path.resolve(paths.appBuild, manifestFile);
+    console.log('FileName: ', fileName);
+
+    const plugins: rspack.Plugins = [
         new CleanWebpackPlugin({
             verbose: config.verbose,
             cleanOnceBeforeBuildPatterns: [
@@ -613,24 +613,35 @@ function configurePlugins(options: HelperOptions): webpack.Configuration['plugin
                 ...excludeFromClean,
             ],
         }),
-        new WebpackManifestPlugin({
+        new RspackManifestPlugin({
             writeToFileEmit: true,
             publicPath: '',
+            fileName: fileName,
+            useLegacyEmit: true,
+            generate(seed, files, entries) {
+                console.log('Seed: ', seed);
+                console.log('Files: ', JSON.stringify(files));
+                console.log('Entries: ', JSON.stringify(entries));
+
+                return {
+                    lol: 123,
+                };
+            },
         }),
-        new WebpackAssetsManifest(
-            isEnvProduction
-                ? {
-                      entrypoints: true,
-                      output: manifestFile,
-                  }
-                : {
-                      entrypoints: true,
-                      writeToDisk: true,
-                      output: path.resolve(paths.appBuild, manifestFile),
-                  },
-        ),
+        // new WebpackAssetsManifest(
+        //     isEnvProduction
+        //         ? {
+        //               entrypoints: true,
+        //               output: manifestFile,
+        //           }
+        //         : {
+        //               entrypoints: true,
+        //               writeToDisk: true,
+        //               output: path.resolve(paths.appBuild, manifestFile),
+        //           },
+        // ),
         createMomentTimezoneDataPlugin(config.momentTz),
-        new webpack.DefinePlugin({
+        new rspack.DefinePlugin({
             'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
             ...config.definitions,
         }),
@@ -638,14 +649,15 @@ function configurePlugins(options: HelperOptions): webpack.Configuration['plugin
     if (options.logger) {
         plugins.push(new ProgressPlugin({logger: options.logger}));
     }
-    if (process.env.WEBPACK_PROFILE === 'true') {
-        plugins.push(new webpack.debug.ProfilingPlugin());
-    }
+    // Profiling plugin not needed since debug options are built-in
+    // if (process.env.WEBPACK_PROFILE === 'true') {
+    //     plugins.push(new rspack.debug.ProfilingPlugin());
+    // }
 
     const contextReplacement = config.contextReplacement || {};
 
     plugins.push(
-        new webpack.ContextReplacementPlugin(
+        new rspack.ContextReplacementPlugin(
             /moment[\\/]locale$/,
             // eslint-disable-next-line security/detect-non-literal-regexp
             new RegExp(`^\\./(${(contextReplacement.locale || ['ru']).join('|')})$`),
@@ -653,7 +665,7 @@ function configurePlugins(options: HelperOptions): webpack.Configuration['plugin
     );
 
     plugins.push(
-        new webpack.ContextReplacementPlugin(
+        new rspack.ContextReplacementPlugin(
             /dayjs[\\/]locale$/,
             // eslint-disable-next-line security/detect-non-literal-regexp
             new RegExp(`^\\./(${(contextReplacement.locale || ['ru']).join('|')})\\.js$`),
@@ -662,7 +674,7 @@ function configurePlugins(options: HelperOptions): webpack.Configuration['plugin
 
     if (contextReplacement['highlight.js']) {
         plugins.push(
-            new webpack.ContextReplacementPlugin(
+            new rspack.ContextReplacementPlugin(
                 /highlight\.js[\\/]lib[\\/]languages$/,
                 // eslint-disable-next-line security/detect-non-literal-regexp
                 new RegExp(`^\\./(${contextReplacement['highlight.js'].join('|')})$`),
@@ -725,12 +737,12 @@ function configurePlugins(options: HelperOptions): webpack.Configuration['plugin
     }
 
     if (config.polyfill?.process) {
-        plugins.push(new webpack.ProvidePlugin({process: 'process/browser.js'}));
+        plugins.push(new rspack.ProvidePlugin({process: 'process/browser.js'}));
     }
 
     if (isEnvProduction) {
         plugins.push(
-            new MiniCSSExtractPlugin({
+            new rspack.CssExtractRspackPlugin({
                 filename: 'css/[name].[contenthash:8].css',
                 chunkFilename: 'css/[name].[contenthash:8].chunk.css',
                 ignoreOrder: true,
@@ -817,7 +829,7 @@ function configurePlugins(options: HelperOptions): webpack.Configuration['plugin
     return plugins;
 }
 
-type Optimization = NonNullable<webpack.Configuration['optimization']>;
+type Optimization = NonNullable<rspack.Configuration['optimization']>;
 export function configureOptimization({config}: HelperOptions): Optimization {
     const configVendors = config.vendors ?? [];
 
@@ -869,49 +881,39 @@ export function configureOptimization({config}: HelperOptions): Optimization {
         },
         runtimeChunk: 'single',
         minimizer: [
-            (compiler) => {
+            (compiler: rspack.Compiler) => {
                 // CssMinimizerWebpackPlugin works with MiniCSSExtractPlugin, so only relevant for production builds.
                 // Lazy load the CssMinimizerPlugin plugin
-                const CssMinimizerPlugin: typeof CssMinimizerWebpackPlugin = require('css-minimizer-webpack-plugin');
+                const CssMinimizerPlugin: typeof rspack.LightningCssMinimizerRspackPlugin =
+                    rspack.LightningCssMinimizerRspackPlugin;
 
-                if (config.transformCssWithLightningCss) {
-                    const lightningCss = require('lightningcss');
-                    const browserslist = require('browserslist');
+                const lightningCss = require('lightningcss');
+                const browserslist = require('browserslist');
 
-                    new CssMinimizerPlugin<Partial<Lightningcss.BundleOptions<{}>>>({
-                        minify: CssMinimizerPlugin.lightningCssMinify,
-                        minimizerOptions: {
-                            targets: lightningCss.browserslistToTargets(browserslist()),
-                        },
-                    }).apply(compiler);
-                } else {
-                    new CssMinimizerPlugin({
-                        minimizerOptions: {
-                            preset: [
-                                'default',
-                                {
-                                    svgo: false,
-                                },
-                            ],
-                        },
-                    }).apply(compiler);
-                }
-            },
-            (compiler) => {
-                // Lazy load the Terser plugin
-                const TerserPlugin: typeof TerserWebpackPlugin = require('terser-webpack-plugin');
-                let terserOptions: TerserWebpackPlugin.TerserOptions = {
-                    compress: {
-                        passes: 2,
+                new CssMinimizerPlugin({
+                    minimizerOptions: {
+                        targets: lightningCss.browserslistToTargets(browserslist()),
                     },
-                    safari10: config.safari10,
-                    mangle: !config.reactProfiling,
+                }).apply(compiler);
+            },
+            (compiler: rspack.Compiler) => {
+                // Lazy load the Terser plugin
+                const TerserPlugin = rspack.SwcJsMinimizerRspackPlugin;
+                let minimizerOptions: rspack.SwcJsMinimizerRspackPluginOptions = {
+                    minimizerOptions: {
+                        compress: {
+                            passes: 2,
+                        },
+                        mangle: {
+                            safari10: config.safari10,
+                        },
+                    },
                 };
                 const {terser} = config;
                 if (typeof terser === 'function') {
-                    terserOptions = terser(terserOptions);
+                    minimizerOptions = terser(minimizerOptions);
                 }
-                new TerserPlugin({terserOptions}).apply(compiler);
+                new TerserPlugin(minimizerOptions).apply(compiler);
             },
         ],
     };

@@ -2,11 +2,11 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {prettyTime} from '../logger/pretty-time';
 
-import type webpack from 'webpack';
+import type rspack from '@rspack/core';
 import type {Logger} from '../logger';
 
 export function webpackCompilerHandlerFactory(logger: Logger, onCompilationEnd?: () => void) {
-    return async (err?: Error | null, stats?: webpack.Stats) => {
+    return async (err?: Error | null, stats?: rspack.Stats) => {
         if (err) {
             logger.panic(err.message, err);
         }
@@ -33,7 +33,7 @@ export function webpackCompilerHandlerFactory(logger: Logger, onCompilationEnd?:
             await onCompilationEnd();
         }
 
-        if (stats) {
+        if (typeof stats?.endTime === 'number' && typeof stats.startTime === 'number') {
             const time = stats.endTime - stats.startTime;
             logger.success(
                 `Client was successfully compiled in ${prettyTime(

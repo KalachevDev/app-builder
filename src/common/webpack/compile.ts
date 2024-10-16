@@ -1,4 +1,4 @@
-import webpack from 'webpack';
+import {rspack} from '@rspack/core';
 
 import type {NormalizedClientConfig} from '../models';
 import {Logger} from '../logger';
@@ -12,8 +12,9 @@ export async function webpackCompile(config: NormalizedClientConfig): Promise<vo
     logger.verbose('Config created');
 
     return new Promise((resolve) => {
-        const compiler = webpack(
-            webpackConfig,
+        const compiler = rspack(webpackConfig);
+
+        compiler.run(
             webpackCompilerHandlerFactory(logger, async () => {
                 resolve();
             }),

@@ -7,9 +7,9 @@ import {shouldCompileTarget} from '../../common/utils';
 import logger from '../../common/logger';
 import paths from '../../common/paths';
 
-import type WebpackDevServer from 'webpack-dev-server';
 import type {NormalizedServiceConfig} from '../../common/models';
 import type {ControllableScript} from '../../common/child-process/controllable-script';
+import {RspackDevServer} from '@rspack/dev-server';
 
 export default async function (config: NormalizedServiceConfig) {
     process.env.NODE_ENV = 'development';
@@ -66,7 +66,7 @@ export default async function (config: NormalizedServiceConfig) {
         });
     }
 
-    let clientCompilation: WebpackDevServer | undefined;
+    let clientCompilation: RspackDevServer | undefined;
     if (shouldCompileClient) {
         const {watchClientCompilation} = await import('./client.js');
         clientCompilation = await watchClientCompilation(config, () => {

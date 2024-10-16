@@ -1,4 +1,4 @@
-import * as webpack from 'webpack';
+import * as rspack from '@rspack/core';
 import type {Logger} from '../logger';
 import {elapsedTime} from '../logger/pretty-time';
 
@@ -7,7 +7,7 @@ interface State {
     start?: bigint;
 }
 
-export class ProgressPlugin extends webpack.ProgressPlugin {
+export class ProgressPlugin extends rspack.ProgressPlugin {
     private _logger: Logger;
     private _state: State = {};
 
@@ -25,7 +25,7 @@ export class ProgressPlugin extends webpack.ProgressPlugin {
         );
     };
 
-    apply(compiler: webpack.Compiler) {
+    apply(compiler: rspack.Compiler) {
         super.apply(compiler);
 
         hook(compiler, 'compile', () => {
@@ -51,10 +51,10 @@ export class ProgressPlugin extends webpack.ProgressPlugin {
     }
 }
 
-function hook<HookName extends keyof webpack.Compiler['hooks']>(
-    compiler: webpack.Compiler,
+function hook<HookName extends keyof rspack.Compiler['hooks']>(
+    compiler: rspack.Compiler,
     hookName: HookName,
-    callback: Parameters<webpack.Compiler['hooks'][HookName]['tap']>[1],
+    callback: Parameters<rspack.Compiler['hooks'][HookName]['tap']>[1],
 ) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     compiler.hooks[hookName].tap(`app-builder: ${hookName}`, callback as any);

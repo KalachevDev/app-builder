@@ -211,7 +211,7 @@ async function normalizeClientConfig(client: ClientConfig, mode?: 'dev' | 'build
         hiddenSourceMap: client.hiddenSourceMap ?? true,
         svgr: client.svgr ?? {},
         entryFilter: client.entryFilter && splitPaths(client.entryFilter),
-        webpack: typeof client.webpack === 'function' ? client.webpack : (config) => config,
+        rspack: typeof client.webpack === 'function' ? client.webpack : (config) => config,
         babel: typeof client.babel === 'function' ? client.babel : (config) => config,
         devServer: undefined,
         lazyCompilation: undefined,
@@ -246,8 +246,8 @@ async function normalizeClientConfig(client: ClientConfig, mode?: 'dev' | 'build
             ...other,
             ...devServer,
             server: {
-                type,
-                options,
+                https: type === 'https',
+                ...options,
             },
         };
         delete normalizedConfig.cdn;

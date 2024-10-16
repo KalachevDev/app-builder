@@ -1,29 +1,23 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import webpack from 'webpack';
-import WebpackDevServer from 'webpack-dev-server';
-import {getCompilerHooks} from 'webpack-manifest-plugin';
-import WebpackAssetsManifest from 'webpack-assets-manifest';
-import {deferredPromise} from '../../common/utils';
 
 import paths from '../../common/paths';
 import {Logger} from '../../common/logger';
 import {WebpackMode, webpackConfigFactory} from '../../common/webpack/config';
 
-import type {Configuration, HttpProxyMiddlewareOptionsFilter} from 'webpack-dev-server';
 import type {NormalizedServiceConfig} from '../../common/models';
+import * as Rspack from '@rspack/core';
+import {RspackDevServer} from '@rspack/dev-server';
+import type {Configuration} from '@rspack/dev-server';
 
 export async function watchClientCompilation(
     config: NormalizedServiceConfig,
-    onManifestReady: () => void,
+    onCompilationEnd: () => void,
 ) {
     const clientCompilation = await buildWebpackServer(config);
 
-    const compiler = clientCompilation.compiler;
-    if ('compilers' in compiler) {
-        throw new Error('Unexpected multi compiler');
-    }
-    subscribeToManifestReadyEvent(compiler, onManifestReady);
+    const {done} = clientCompilation.compiler.hooks;
+    done.tap('app-builder: afterEmit', onCompilationEnd);
 
     return clientCompilation;
 }
@@ -31,9 +25,12 @@ export async function watchClientCompilation(
 async function buildWebpackServer(config: NormalizedServiceConfig) {
     const logger = new Logger('webpack', config.verbose);
 
+    console.log('PUPUL', config);
+
     const {
         webSocketPath = path.normalize(`/${config.client.publicPathPrefix}/build/sockjs-node`),
         writeToDisk,
+        server: serverConfig,
         ...devServer
     } = config.client.devServer || {};
 
@@ -72,6 +69,7 @@ async function buildWebpackServer(config: NormalizedServiceConfig) {
             'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
         },
         ...devServer,
+        server: serverConfig?.server,
     };
 
     const listenOn = options.port || options.ipc;
@@ -90,7 +88,8 @@ async function buildWebpackServer(config: NormalizedServiceConfig) {
 
     if (config.server.port) {
         // if server port is specified, proxy to it
-        const filter: HttpProxyMiddlewareOptionsFilter = (pathname, req) => {
+        // @ts-ignore @TODO(kalachevv): fix this
+        const filter = (pathname, req) => {
             // do not proxy build files
             if (pathname.startsWith(publicPath)) {
                 return false;
@@ -112,8 +111,8 @@ async function buildWebpackServer(config: NormalizedServiceConfig) {
 
     options.proxy = proxy;
 
-    const compiler = webpack(webpackConfig);
-    const server = new WebpackDevServer(options, compiler);
+    const compiler = Rspack.rspack(webpackConfig);
+    const server = new RspackDevServer(options, compiler);
 
     try {
         await server.start();
@@ -126,25 +125,4 @@ async function buildWebpackServer(config: NormalizedServiceConfig) {
     }
 
     return server;
-}
-
-function subscribeToManifestReadyEvent(compiler: webpack.Compiler, onManifestReady: () => void) {
-    const promises: Promise<unknown>[] = [];
-
-    const assetsManifestPlugin = compiler.options.plugins.find(
-        (plugin) => plugin instanceof WebpackAssetsManifest,
-    );
-
-    if (assetsManifestPlugin) {
-        const assetsManifestReady = deferredPromise();
-        promises.push(assetsManifestReady.promise);
-        assetsManifestPlugin.hooks.done.tap('app-builder', assetsManifestReady.resolve);
-    }
-
-    const manifestReady = deferredPromise();
-    promises.push(manifestReady.promise);
-    const {afterEmit} = getCompilerHooks(compiler);
-    afterEmit.tap('app-builder', manifestReady.resolve);
-
-    Promise.all(promises).then(() => onManifestReady());
 }
